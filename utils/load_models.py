@@ -18,15 +18,15 @@ def load_i2t_model(engine, args=None):
         processor = image_processor
     elif engine == 'llava16-7b':
         from llava.model.builder import load_pretrained_model as load_llava_model
-        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data0/lxy_data/huggingface/llava-v1.6-vicuna-7b', model_base=None, model_name='llava-v1.6-vicuna-7b', device_map="auto", torch_dtype=torch.bfloat16)
+        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data1/yq_log/IntenICL/huggingface/llava-v1.6-vicuna-7b', model_base=None, model_name='llava-v1.6-vicuna-7b', device_map="auto", torch_dtype=torch.bfloat16)
         processor = image_processor
     elif 'llava-onevision-0.5b' in engine:
         from llava.model.builder import load_pretrained_model as load_llava_model
-        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data0/lxy_data/huggingface/llava-onevision-qwen2-0.5b-ov', model_base=None, attn_implementation="flash_attention_2", model_name='llava_qwen', device_map="cuda", torch_dtype=torch.bfloat16)
+        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data1/yq_log/IntenICL/huggingface/llava-onevision-qwen2-0.5b-ov', model_base=None, attn_implementation="flash_attention_2", model_name='llava_qwen', device_map="cuda", torch_dtype=torch.bfloat16)
         processor = image_processor
     elif 'llava-onevision-7b' in engine:
         from llava.model.builder import load_pretrained_model as load_llava_model
-        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data0/lxy_data/huggingface/llava-onevision-qwen2-7b-ov', model_base=None, attn_implementation="flash_attention_2", model_name='llava_qwen', device_map="auto", torch_dtype=torch.bfloat16)
+        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data1/yq_log/IntenICL/huggingface/llava-onevision-qwen2-7b-ov', model_base=None, attn_implementation="flash_attention_2", model_name='llava_qwen', device_map="auto", torch_dtype=torch.bfloat16)
         processor = image_processor
     elif engine == 'qwen-vl-chat':
         from transformers.generation import GenerationConfig
@@ -37,9 +37,9 @@ def load_i2t_model(engine, args=None):
         processor = None
     elif engine == 'qwen-vl':
         from transformers.generation import GenerationConfig
-        tokenizer = transformers.AutoTokenizer.from_pretrained("/data0/lxy_data/huggingface/Qwen/Qwen-VL", trust_remote_code=True)
-        model = transformers.AutoModelForCausalLM.from_pretrained("/data0/lxy_data/huggingface/Qwen/Qwen-VL", device_map="auto", trust_remote_code=True).eval()
-        model.generation_config = GenerationConfig.from_pretrained("/data0/lxy_data/huggingface/Qwen/Qwen-VL", trust_remote_code=True)
+        tokenizer = transformers.AutoTokenizer.from_pretrained("/data1/yq_log/IntenICL/huggingface/Qwen/Qwen-VL", trust_remote_code=True)
+        model = transformers.AutoModelForCausalLM.from_pretrained("/data1/yq_log/IntenICL/huggingface/Qwen/Qwen-VL", device_map="auto", trust_remote_code=True).eval()
+        model.generation_config = GenerationConfig.from_pretrained("/data1/yq_log/IntenICL/huggingface/Qwen/Qwen-VL", trust_remote_code=True)
         processor = None
     elif engine == 'internlm-x2':
         model = transformers.AutoModel.from_pretrained('internlm/internlm-xcomposer2-7b', trust_remote_code=True, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, device_map="cuda")

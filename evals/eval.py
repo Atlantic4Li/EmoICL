@@ -5,8 +5,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 SIM_MODEL = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
 def eval_scores(results, dataset, model=None, tokenizer=None, processor=None):
-    if dataset == 'Intentonomy':
-        score = semantic_accuracy(results)
+    if dataset in ['Intentonomy','EmotionROI','ArtPhoto','EmoSet','StanfordCars','StanfordDogs','CUB_200_2011','OxfordFlowers17','Oxford-IIIT_Pet']:
+        score = semantic_accuracy(dataset, results)
     return score
 
 
@@ -37,9 +37,19 @@ def eval_scores(results, dataset, model=None, tokenizer=None, processor=None):
     
 #     return np.mean(acc)
 
-def semantic_accuracy(results, thresholds=[0.7, 0.8, 0.9]):
+def semantic_accuracy(dataset, results, thresholds=[0.7, 0.8, 0.9]):
     """支持句号分句的语义评估函数"""
-    prefix = "the intention of this image is "
+    if dataset == 'Intentonomy':
+        prefix = "the intention of this image is "
+    elif dataset in ['EmotionROI', 'ArtPhoto', 'EmoSet']:
+        prefix = "the emotion of this image is"
+    elif dataset in ['StanfordCars','OxfordFlowers17','Oxford-IIIT_Pet']:
+        prefix = "the category of object in the image is"
+    elif dataset == 'StanfordDogs':
+        prefix = "the category of object in the image is"  
+    elif dataset == 'CUB_200_2011':
+        prefix = "the category of object in the image is"
+    else: prefix = ''
     acc = {th: [] for th in thresholds}
     
     for result in results:
