@@ -4,20 +4,31 @@ import numpy as np
 from collections import defaultdict
 from scipy.spatial.distance import cdist
 import math
-import logging
+import torch
+from transformers import CLIPProcessor, CLIPModel
 
 
-def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, similarity_data=None, support_features=None, query_feature=None, balance_threshold=0.7):
+def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, similarity_data=None, support_features=None, query_feature=None, balance_threshold=0.7, cross_modal_similarity=None):
     if dataset in ['Intentonomy','EmotionROI','ArtPhoto','EmoSet','StanfordCars','StanfordDogs','CUB_200_2011','OxfordFlowers17','Oxford-IIIT_Pet']:   
-        if strategy == 'random':
+        if strategy == 'random':    # 随机选择
             n_shot_support_raw = random.sample(support_meta, n_shot)
             n_shot_support = copy.deepcopy(n_shot_support_raw)
-        elif strategy == 'similarity':
+        elif strategy == 'similarity': # 验证相似性排序的影响
             n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, similarity_data)
-        elif strategy == 'various':
+        elif strategy == 'various': # 验证类别信息+多样性排序
             n_shot_support = retrieve_category_aware_demos(query, support_meta, n_shot, similarity_data, support_features, query_feature, balance_threshold)
-    else:
-        n_shot_support = random.sample(support_meta, n_shot)
+        elif strategy == 'whole':  # 主实验
+            n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity, support_features, query_feature, balance_threshold)
+        elif strategy == 'test_diverse': # 验证去掉类别信息后，多样性排序有效性
+            n_shot_support = retrieve_diverse_demos(query, support_meta, n_shot, similarity_data, support_features, query_feature)
+        elif strategy == 'test_same_similarity': # 与查询相同类别但按相似性排序
+            n_shot_support = retrieve_same_class_demos(query, support_meta, n_shot, similarity_data)
+        elif strategy == 'test_same_random': # 与查询相同类别但随机排序
+            n_shot_support = retrieve_random_demos(support_meta, n_shot, query)
+        elif strategy == 'test_text_similarity': # 使用文本相似度，验证重排有效性
+            n_shot_support = retrieve_text_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity)
+    # else:
+    #     n_shot_support = random.sample(support_meta, n_shot)
 
     return n_shot_support
 
@@ -46,17 +57,17 @@ def retrieve_similar_demos(query_item, support_meta, n_shot, similarity_data):
     similarities = similarity_data[query_id]
     sorted_ids = sorted(similarities.keys(), 
                        key=lambda x: similarities[x], 
-                       reverse=True)[:n_shot]
+                       reverse=True)
     
     # 按排序结果获取元数据
     selected = []
     for s_id in sorted_ids:
         if s_id in support_dict:
             selected.append(support_dict[s_id])
-        else:
-            print(f"警告: 支持集ID {s_id} 不存在于元数据中")
+            if len(selected) >= n_shot:
+                break
     
-    return selected[:n_shot]
+    return selected
 
 def retrieve_category_aware_demos(
     query_item,
@@ -251,6 +262,308 @@ def allocate_quota(category_counts, total, n_shot):
     return {k: v for k, v in base_alloc.items() if v > 0}
 
 
+def retrieve_same_class_demos(query_item, support_meta, n_shot, similarity_data):
+    """
+    选择与查询图像相同类别的示例
+    
+    参数：
+        query_item: 查询样本的元数据字典（需包含img_id和category）
+        support_meta: 支持集元数据列表
+        n_shot: 需要返回的示例数量
+        similarity_data: 预加载的相似度字典（用于在相同类别内排序）
+    
+    返回：
+        list: 相同类别内按相似度排序的示例列表
+    """
+    # 获取查询图像的类别
+    query_category = query_item["category"]
+    
+    # 筛选相同类别的样本
+    same_class_samples = [item for item in support_meta if item["category"] == query_category]
+    
+    # 如果相同类别的样本数量不足，返回所有可用的样本
+    if len(same_class_samples) <= n_shot:
+        return same_class_samples
+    
+    # 在相同类别内按相似度排序
+    query_id = query_item["img_id"]
+    if query_id in similarity_data:
+        # 构建支持集索引
+        support_dict = {item["img_id"]: item for item in same_class_samples}
+        
+        # 获取相似度并排序
+        similarities = {s_id: similarity_data[query_id].get(s_id, 0) 
+                       for s_id in support_dict.keys()}
+        sorted_ids = sorted(similarities.keys(), 
+                          key=lambda x: similarities[x], 
+                          reverse=True)[:n_shot]
+        
+        # 返回排序后的样本
+        return [support_dict[s_id] for s_id in sorted_ids]
+    else:
+        # 如果没有相似度数据，随机选择
+        return random.sample(same_class_samples, n_shot)
+
+def retrieve_random_demos(support_meta, n_shot, query_item=None):
+    """
+    纯随机选择示例，如果提供了query_item，则在同类别样本中随机选择
+    
+    参数：
+        support_meta: 支持集元数据列表
+        n_shot: 需要返回的示例数量
+        query_item: 查询样本的元数据字典（可选，如果提供则只选择同类别样本）
+    
+    返回：
+        list: 随机选择的示例列表
+    """
+    # 如果提供了query_item，则只选择同类别样本
+    if query_item is not None:
+        query_category = query_item["category"]
+        same_class_samples = [item for item in support_meta if item["category"] == query_category]
+        if len(same_class_samples) <= n_shot:
+            return same_class_samples
+        return random.sample(same_class_samples, n_shot)
+    
+    # 如果没有提供query_item，则从所有样本中随机选择
+    if len(support_meta) <= n_shot:
+        return support_meta
+    return random.sample(support_meta, n_shot)
+
+def retrieve_diverse_demos(
+    query_item,
+    support_meta,
+    n_shot,
+    similarity_data,
+    support_features,
+    query_feature = None,
+    top_k_ratio=2,  # 相似性预筛选倍数
+    diversity_strategy="mmr"  # 多样性策略选择
+):
+    """
+    基于相似度和多样性的检索策略，不考虑类别信息
+    
+    参数：
+        query_item: 查询样本的元数据字典
+        support_meta: 支持集元数据列表
+        n_shot: 需要返回的示例数量
+        similarity_data: 预加载的相似度字典
+        support_features: 支持集特征字典
+        query_feature: 查询样本特征
+        top_k_ratio: 相似性预筛选倍数
+        diversity_strategy: 多样性选择策略
+    
+    返回：
+        list: 多样化的示例列表
+    """
+    if n_shot == 1:
+        return retrieve_similar_demos(query_item, support_meta, n_shot, similarity_data)
+    
+    # 元数据预处理
+    support_dict = {item["img_id"]: item for item in support_meta}
+    feature_lookup = {k: v.numpy() for k, v in support_features.items()}
+
+    # 第一阶段：全局相似性筛选
+    query_id = query_item["img_id"]
+    all_similarities = similarity_data.get(query_id, {})
+    
+    # 按相似度排序并取Top-K
+    sorted_sims = sorted(
+        all_similarities.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+    top_k = min(len(sorted_sims), top_k_ratio * n_shot)
+    pre_filtered_ids = [s_id for s_id, _ in sorted_sims[:top_k]]
+
+    # 第二阶段：直接进行多样性选择
+    final_selected = select_with_diversity(
+        candidate_ids=pre_filtered_ids,
+        support_dict=support_dict,
+        features=feature_lookup,
+        query_feature=query_feature,
+        n_shot=n_shot,
+        strategy=diversity_strategy
+    )
+    
+    return final_selected
+
+def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold):
+    """
+    三阶段检索策略：
+    1. 第一阶段：使用视觉相似度选择5*n_shot个候选
+    2. 第二阶段：根据类别分布判断主类/平衡模式，使用跨模态相似度重排序选择2*n_shot个候选
+    3. 第三阶段：使用多样性策略选择最终的n_shot个样本
+    """
+    # 将support_meta转换为字典形式，以img_id为键
+    support_dict = {item['img_id']: item for item in support_meta}
+    
+    # 单样本特殊处理
+    if n_shot == 1:
+        query_id = query['img_id']
+        
+        # 第一阶段：视觉相似度预筛选
+        visual_sims = visual_similarity[query_id]
+        sorted_visual = sorted(visual_sims.items(), key=lambda x: x[1], reverse=True)
+        top_k = min(5, len(sorted_visual))
+        pre_filtered = {
+            s_id: sim_score 
+            for s_id, sim_score in sorted_visual[:top_k]
+            if s_id in support_dict  # 确保样本在support_meta中
+        }
+        
+        # 计算综合得分
+        candidate_scores = {}
+        for cand_id, visual_score in pre_filtered.items():
+            if cand_id in cross_modal_similarity[query_id]:
+                cross_score = cross_modal_similarity[query_id][cand_id]
+                combined_score = 0.99 * visual_score + 0.01 * cross_score
+                candidate_scores[cand_id] = combined_score
+        
+        # 按类别统计
+        category_counter = defaultdict(list)
+        for s_id, score in candidate_scores.items():
+            category = support_dict[s_id]['category']
+            category_counter[category].append((s_id, score))
+        
+        # 计算类别分布
+        category_counts = {k: len(v) for k, v in category_counter.items()}
+        total = sum(category_counts.values())
+        
+        if total == 0:
+            return []
+            
+        # 判断是否存在主类
+        max_proportion = max(count / total for count in category_counts.values())
+        
+        if max_proportion > balance_threshold:
+            # 主类模式：选择主类中得分最高的样本
+            main_class = max(category_counts.items(), key=lambda x: x[1])[0]
+            main_class_samples = category_counter[main_class]
+            best_sample_id = max(main_class_samples, key=lambda x: x[1])[0]
+            return [support_dict[best_sample_id]]
+        else:
+            # 平衡模式：直接选择得分最高的样本
+            best_sample_id = max(candidate_scores.items(), key=lambda x: x[1])[0]
+            return [support_dict[best_sample_id]]
+    
+    # 多样本处理逻辑
+    query_id = query['img_id']
+    
+    # ---------- 第一阶段：视觉相似度选择 ----------
+    first_stage_size = min(5 * n_shot, len(support_dict))
+    visual_sims = visual_similarity[query_id]
+    sorted_visual = sorted(visual_sims.items(), key=lambda x: x[1], reverse=True)
+    
+    first_stage_candidates = {
+        support_id: sim_score 
+        for support_id, sim_score in sorted_visual[:first_stage_size]
+        if support_id in support_dict  # 确保样本在support_meta中
+    }
+    
+    # ---------- 第二阶段：跨模态重排序和类别平衡 ----------
+    second_stage_size = 2 * n_shot
+    cross_sims = cross_modal_similarity[query_id]
+    
+    candidate_scores = {}
+    for cand_id in first_stage_candidates:
+        if cand_id in cross_sims:
+            visual_score = first_stage_candidates[cand_id]
+            cross_score = cross_sims[cand_id]
+            combined_score = 0.99 * visual_score + 0.01 * cross_score
+            candidate_scores[cand_id] = combined_score
+    
+    category_groups = defaultdict(list)
+    for support_id, score in candidate_scores.items():
+        category = support_dict[support_id]['category']
+        category_groups[category].append((support_id, score))
+    
+    category_counts = {k: len(v) for k, v in category_groups.items()}
+    total_samples = sum(category_counts.values())
+    
+    if total_samples == 0:
+        return []
+        
+    max_proportion = max(count / total_samples for count in category_counts.values())
+    
+    second_stage_candidates = {}
+    if max_proportion > balance_threshold:
+        main_class = max(category_counts.items(), key=lambda x: x[1])[0]
+        main_class_samples = sorted(category_groups[main_class], key=lambda x: x[1], reverse=True)
+        
+        for support_id, score in main_class_samples[:second_stage_size]:
+            second_stage_candidates[support_id] = support_dict[support_id]
+    else:
+        allocated = allocate_quota(category_counts, total_samples, second_stage_size)
+        
+        for category, quota in allocated.items():
+            sorted_samples = sorted(category_groups[category], key=lambda x: x[1], reverse=True)
+            for support_id, score in sorted_samples[:quota]:
+                second_stage_candidates[support_id] = support_dict[support_id]
+    
+    # ---------- 第三阶段：多样性选择 ----------
+    feature_lookup = {k: v.numpy() for k, v in support_features.items()}
+    final_selected = select_with_diversity(
+        candidate_ids=list(second_stage_candidates.keys()),
+        support_dict=support_dict,
+        features=feature_lookup,
+        query_feature=query_feature,
+        n_shot=n_shot,
+        strategy="mmr"
+    )
+    
+    return final_selected
+
+def retrieve_text_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity):
+    """
+    两阶段检索策略：
+    1. 第一阶段：使用视觉相似度选择5*n_shot个候选
+    2. 第二阶段：使用视觉相似度和语义相似度的加权平均重排序，选择前n个样本
+    
+    参数：
+        query: 查询样本信息
+        support_meta: 支持集元数据
+        n_shot: 需要检索的样本数量
+        visual_similarity: 视觉相似度矩阵
+        cross_modal_similarity: 语义相似度矩阵
+    """
+    query_id = query['img_id']
+    
+    # 第一阶段：视觉相似度预筛选
+    visual_sims = visual_similarity[query_id]
+    sorted_visual = sorted(visual_sims.items(), key=lambda x: x[1], reverse=True)
+    pre_filtered = {
+        support_id: sim_score 
+        for support_id, sim_score in sorted_visual[:5 * n_shot]
+    }
+    
+    # 第二阶段：加权平均重排序
+    if cross_modal_similarity is not None and query_id in cross_modal_similarity:
+        cross_sims = cross_modal_similarity[query_id]
+        # 计算加权平均分数
+        candidate_scores = {}
+        for s_id, visual_score in pre_filtered.items():
+            if s_id in cross_sims:
+                cross_score = cross_sims[s_id]
+                combined_score = 0.9 * visual_score + 0.1 * cross_score
+                candidate_scores[s_id] = combined_score
+        
+        # 按加权平均分数排序
+        sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
+        selected_ids = [s_id for s_id, _ in sorted_candidates[:n_shot]]
+    else:
+        # 如果没有语义相似度，就直接用视觉相似度的排序
+        selected_ids = list(pre_filtered.keys())[:n_shot]
+    
+    support_dict = {item["img_id"]: item for item in support_meta}
+    # 返回选中的样本
+    selected_samples = []
+    for s_id in selected_ids:
+        if s_id in support_dict:
+            selected_samples.append(support_dict[s_id])
+            if len(selected_samples) >= n_shot:
+                break
+    
+    return selected_samples
 
 
 def select_with_diversity(candidate_ids, support_dict, features, 
@@ -380,3 +693,5 @@ def format_answer(answer, dataset, query=None):
     if dataset in ['Intentonomy','EmotionROI','ArtPhoto','EmoSet','StanfordCars','StanfordDogs','CUB_200_2011','OxfordFlowers17','Oxford-IIIT_Pet']:
         answer = str(answer)
     return answer
+
+
