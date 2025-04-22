@@ -1,6 +1,6 @@
 import os
 import pickle
-os.environ["CUDA_VISIBLE_DEVICES"] = "5,6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 import torch
 from tqdm import tqdm
@@ -31,7 +31,7 @@ def parse_args():
                                                    'llava-onevision-0.5b'],
                         default=['qwen-vl'], nargs="+")
     parser.add_argument('--strategy', default=['whole'], type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
-    parser.add_argument('--n_shot', default=[1,2,4,8], nargs="+", help='Number of support images.')
+    parser.add_argument('--n_shot', default=[8], nargs="+", help='Number of support images.')
 
     parser.add_argument('--max-new-tokens', default=256, type=int, help='Max new tokens for generation.')
     parser.add_argument('--task_description', default='concise', type=str, choices=['nothing', 'concise', 'detailed'], help='Detailed level of task description.')
@@ -104,7 +104,7 @@ if __name__ == "__main__":
                     with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-ft2-balance{args.balance_threshold}.json", "w") as f:
                         json.dump(results_dict, f, indent=4)
                 elif not args.ft:
-                    with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-991-balance{args.balance_threshold}.json", "w") as f:
+                    with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-99_1-balance{args.balance_threshold}.json", "w") as f:
                         json.dump(results_dict, f, indent=4)
 
             del model, tokenizer, processor

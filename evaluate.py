@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--engine", "-e", choices=["openflamingo", "otter-llama", "llava16-7b", "qwen-vl", "qwen-vl-chat", 'internlm-x2', 
                                                    'emu2-chat', 'idefics-9b-instruct', 'idefics-80b-instruct', 'gpt4v', 'llava-onevision-7b',
                                                    'llava-onevision-0.5b'],
-                        default=['llava-onevision-0.5b','llava-onevision-7b','qwen-vl'], nargs="+")
+                        default=['llava-onevision-7b','qwen-vl'], nargs="+")
     parser.add_argument('--strategy', default=['whole'], type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','whole','test_diverse'], help='Example selection strategy.')
     parser.add_argument('--n_shot', default=[1,2,4,8], nargs="+", help='Number of support images.')
 
@@ -58,14 +58,14 @@ if __name__ == "__main__":
                               for engine in args.engine 
                               for shot in args.n_shot]
             else:
-                result_files = [f"{args.resultDir}/{dataset}_{strategy}/{engine}_{shot}-shot-991-balance{args.balance_threshold}.json" 
+                result_files = [f"{args.resultDir}/{dataset}_{strategy}/{engine}_{shot}-shot-7_3-balance{args.balance_threshold}.json" 
                               for engine in args.engine 
                               for shot in args.n_shot]
             
             # 评估每个结果文件
             for result_file in result_files:
                 try:
-                    engine, shot = result_file.split("/")[-1].replace(".json", "").split("_")
+                    engine, shot, _ = result_file.split("/")[-1].replace(".json", "").split("_")
                     
                     # 检查文件是否存在
                     if not os.path.exists(result_file):

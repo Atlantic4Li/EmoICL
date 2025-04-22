@@ -387,12 +387,23 @@ def retrieve_diverse_demos(
     
     return final_selected
 
-def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold):
+def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold, min_class_ratio=0.2):
     """
     三阶段检索策略：
     1. 第一阶段：使用视觉相似度选择5*n_shot个候选
     2. 第二阶段：根据类别分布判断主类/平衡模式，使用跨模态相似度重排序选择2*n_shot个候选
     3. 第三阶段：使用多样性策略选择最终的n_shot个样本
+    
+    参数：
+        query: 查询样本信息
+        support_meta: 支持集元数据
+        n_shot: 需要检索的样本数量
+        visual_similarity: 视觉相似度矩阵
+        cross_modal_similarity: 语义相似度矩阵
+        support_features: 支持集特征
+        query_feature: 查询特征
+        balance_threshold: 主类模式阈值
+        min_class_ratio: 最小类别占比阈值(新增参数)
     """
     # 将support_meta转换为字典形式，以img_id为键
     support_dict = {item['img_id']: item for item in support_meta}
@@ -431,13 +442,26 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         
         if total == 0:
             return []
+        
+        # 过滤小类别（新增）
+        valid_categories = {}
+        if total > 0:
+            valid_categories = {
+                k: v for k, v in category_counts.items()
+                if v / total >= min_class_ratio
+            }
+            
+        # 回退机制：如果过滤后没有有效类别，使用原始分布
+        if not valid_categories:
+            valid_categories = category_counts
             
         # 判断是否存在主类
-        max_proportion = max(count / total for count in category_counts.values())
+        total_valid = sum(valid_categories.values())
+        max_proportion = max(v / total_valid for v in valid_categories.values()) if total_valid > 0 else 0
         
         if max_proportion > balance_threshold:
             # 主类模式：选择主类中得分最高的样本
-            main_class = max(category_counts.items(), key=lambda x: x[1])[0]
+            main_class = max(valid_categories.items(), key=lambda x: x[1])[0]
             main_class_samples = category_counter[main_class]
             best_sample_id = max(main_class_samples, key=lambda x: x[1])[0]
             return [support_dict[best_sample_id]]
@@ -477,23 +501,36 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         category = support_dict[support_id]['category']
         category_groups[category].append((support_id, score))
     
+    # 计算类别分布
     category_counts = {k: len(v) for k, v in category_groups.items()}
     total_samples = sum(category_counts.values())
     
     if total_samples == 0:
         return []
+    
+    # 过滤小类别（新增）
+    filtered_categories = {
+        k: v for k, v in category_counts.items()
+        if v / total_samples >= min_class_ratio
+    }
+    
+    # 回退机制：如果过滤后没有有效类别，使用原始分布
+    if not filtered_categories:
+        filtered_categories = category_counts
         
-    max_proportion = max(count / total_samples for count in category_counts.values())
+    # 重新计算总数和最大占比
+    filtered_total = sum(filtered_categories.values())
+    max_proportion = max(v / filtered_total for v in filtered_categories.values())
     
     second_stage_candidates = {}
     if max_proportion > balance_threshold:
-        main_class = max(category_counts.items(), key=lambda x: x[1])[0]
+        main_class = max(filtered_categories.items(), key=lambda x: x[1])[0]
         main_class_samples = sorted(category_groups[main_class], key=lambda x: x[1], reverse=True)
         
         for support_id, score in main_class_samples[:second_stage_size]:
             second_stage_candidates[support_id] = support_dict[support_id]
     else:
-        allocated = allocate_quota(category_counts, total_samples, second_stage_size)
+        allocated = allocate_quota(filtered_categories, filtered_total, second_stage_size)
         
         for category, quota in allocated.items():
             sorted_samples = sorted(category_groups[category], key=lambda x: x[1], reverse=True)
