@@ -427,7 +427,7 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         for cand_id, visual_score in pre_filtered.items():
             if cand_id in cross_modal_similarity[query_id]:
                 cross_score = cross_modal_similarity[query_id][cand_id]
-                combined_score = 0.99 * visual_score + 0.01 * cross_score
+                combined_score = 0.7 * visual_score + 0.3 * cross_score
                 candidate_scores[cand_id] = combined_score
         
         # 按类别统计
@@ -493,7 +493,7 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         if cand_id in cross_sims:
             visual_score = first_stage_candidates[cand_id]
             cross_score = cross_sims[cand_id]
-            combined_score = 0.99 * visual_score + 0.01 * cross_score
+            combined_score = 0.7 * visual_score + 0.3 * cross_score
             candidate_scores[cand_id] = combined_score
     
     category_groups = defaultdict(list)

@@ -6,19 +6,23 @@ import torch
 def load_i2t_model(engine, args=None):
     if engine == 'otter-mpt':
         from otter_ai import OtterForConditionalGeneration
-        model = OtterForConditionalGeneration.from_pretrained("luodian/OTTER-Image-MPT7B", device_map="cuda", torch_dtype=torch.bfloat16)
+        model = OtterForConditionalGeneration.from_pretrained("/data1/yq_log/IntenICL/huggingface/luodian/OTTER-Image-MPT7B", device_map="cuda", torch_dtype=torch.bfloat16)
         tokenizer = model.text_tokenizer
         image_processor = transformers.CLIPImageProcessor()
         processor = image_processor
     elif engine == 'otter-llama':
         from otter_ai import OtterForConditionalGeneration
-        model = OtterForConditionalGeneration.from_pretrained("luodian/OTTER-Image-LLaMA7B-LA-InContext", device_map="cuda", torch_dtype=torch.bfloat16)
+        model = OtterForConditionalGeneration.from_pretrained("/data1/yq_log/IntenICL/huggingface/luodian/OTTER-Image-LLaMA7B-LA-InContext", device_map="auto", torch_dtype=torch.bfloat16)
         tokenizer = model.text_tokenizer
         image_processor = transformers.CLIPImageProcessor()
         processor = image_processor
     elif engine == 'llava16-7b':
         from llava.model.builder import load_pretrained_model as load_llava_model
         tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data1/yq_log/IntenICL/huggingface/llava-v1.6-vicuna-7b', model_base=None, model_name='llava-v1.6-vicuna-7b', device_map="auto", torch_dtype=torch.bfloat16)
+        processor = image_processor
+    elif engine == 'llava16-13b':
+        from llava.model.builder import load_pretrained_model as load_llava_model
+        tokenizer, model, image_processor, context_len = load_llava_model(model_path='/data1/yq_log/IntenICL/huggingface/liuhaotian/llava-v1.6-vicuna-13b', model_base=None, model_name='llava-v1.6-vicuna-13b', device_map="auto", torch_dtype=torch.bfloat16)
         processor = image_processor
     elif 'llava-onevision-0.5b' in engine:
         from llava.model.builder import load_pretrained_model as load_llava_model
@@ -42,8 +46,8 @@ def load_i2t_model(engine, args=None):
         model.generation_config = GenerationConfig.from_pretrained("/data1/yq_log/IntenICL/huggingface/Qwen/Qwen-VL", trust_remote_code=True)
         processor = None
     elif engine == 'internlm-x2':
-        model = transformers.AutoModel.from_pretrained('internlm/internlm-xcomposer2-7b', trust_remote_code=True, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, device_map="cuda")
-        tokenizer = transformers.AutoTokenizer.from_pretrained('internlm/internlm-xcomposer2-7b', trust_remote_code=True)
+        model = transformers.AutoModel.from_pretrained('/data1/yq_log/IntenICL/huggingface/internlm/internlm-xcomposer2-7b', trust_remote_code=True, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, device_map="auto")
+        tokenizer = transformers.AutoTokenizer.from_pretrained('/data1/yq_log/IntenICL/huggingface/internlm/internlm-xcomposer2-7b', trust_remote_code=True)
         model.tokenizer = tokenizer
         processor = None
     elif engine == 'openflamingo':
@@ -77,13 +81,13 @@ def load_i2t_model(engine, args=None):
         processor = None
     elif engine == 'idefics-9b-instruct':
         from transformers import IdeficsForVisionText2Text, AutoProcessor
-        checkpoint = "HuggingFaceM4/idefics-9b-instruct"
-        model = IdeficsForVisionText2Text.from_pretrained(checkpoint, torch_dtype=torch.bfloat16, device_map="cuda", low_cpu_mem_usage=True)
+        checkpoint = "/data1/yq_log/IntenICL/huggingface/HuggingFaceM4/idefics-9b-instruct"
+        model = IdeficsForVisionText2Text.from_pretrained(checkpoint, torch_dtype=torch.bfloat16, device_map="auto", low_cpu_mem_usage=True)
         processor = AutoProcessor.from_pretrained(checkpoint)
         tokenizer = processor.tokenizer
     elif engine == 'idefics-9b':
         from transformers import IdeficsForVisionText2Text, AutoProcessor
-        checkpoint = "HuggingFaceM4/idefics-9b"
+        checkpoint = "/data1/yq_log/IntenICL/huggingface/HuggingFaceM4/idefics-9b"
         model = IdeficsForVisionText2Text.from_pretrained(checkpoint, torch_dtype=torch.bfloat16, device_map="cuda", low_cpu_mem_usage=True)
         processor = AutoProcessor.from_pretrained(checkpoint)
         tokenizer = processor.tokenizer
