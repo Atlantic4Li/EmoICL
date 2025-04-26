@@ -1,6 +1,6 @@
 import os
 import pickle
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
 
 import torch
 from tqdm import tqdm
@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--text_image_sim', default='clip_text_image_similarity.pkl', type=str, help='the similarity of image-text')
     parser.add_argument("--engine", "-e", choices=["openflamingo", "otter-llama", "qwen-vl", 'internlm-x2', 
                                                    'idefics-9b-instruct', 
-                                                   'llava-onevision-7b','llava-onevision-0.5b','llava16-7b'], default=['llava16-7b'], nargs="+")
+                                                   'llava-onevision-7b','llava-onevision-0.5b','llava16-7b','llava16-13b'], default=['llava16-13b'], nargs="+")
     parser.add_argument('--strategy', default=['whole'], type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
     parser.add_argument('--n_shot', default=[1,2,4,8], nargs="+", help='Number of support images.')
 
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument('--ft', default=False, type=bool, help='Whether to use fine-tuning.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
     parser.add_argument('--balance_threshold', default=0.5, type=int, help='Random seed.')
+    parser.add_argument('--exp_scale', default=10000, type=int, help='emoset support scale')
     return parser.parse_args()
 
 def eval_questions(args, query_meta, support_meta, model, tokenizer, processor, engine, strategy, n_shot):

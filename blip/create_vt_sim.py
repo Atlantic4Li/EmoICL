@@ -200,7 +200,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='计算查询文本与支持图像的跨模态相似度')
     parser.add_argument('--datasets', nargs='+', 
-                      default=['Intentonomy', 'EmoSet', 'ArtPhoto', 'EmotionROI'],
+                      default=['EmoSet'],
                       choices=['Intentonomy', 'EmoSet', 'ArtPhoto', 'EmotionROI'],
                       help='要处理的数据集列表')
     args = parser.parse_args()

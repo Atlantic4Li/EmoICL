@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 # 配置参数
 BASE_IMG_DIR = "/data1/yq_log/IntenICL/DataSet"
-OUTPUT_DIR = "/data1/yq_log/IntenICL/DataSet/Oxford-IIIT_Pet"
+OUTPUT_DIR = "/data1/yq_log/IntenICL/DataSet/EmoSet"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 128  # 根据GPU显存调整
 
@@ -103,8 +103,8 @@ def compute_similarity(query_dict, support_dict):
 
 if __name__ == "__main__":
     # 加载元数据
-    query_meta = load_metadata("/data1/yq_log/IntenICL/DataSet/Oxford-IIIT_Pet/query.json")
-    support_meta = load_metadata("/data1/yq_log/IntenICL/DataSet/Oxford-IIIT_Pet/support.json")
+    query_meta = load_metadata("/data1/yq_log/IntenICL/DataSet/EmoSet/query.json")
+    support_meta = load_metadata("/data1/yq_log/IntenICL/DataSet/EmoSet/support.json")
     
     # 特征提取
     query_features = extract_features(query_meta, "query")

@@ -15,10 +15,14 @@ def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, si
             n_shot_support = copy.deepcopy(n_shot_support_raw)
         elif strategy == 'similarity': # 验证相似性排序的影响
             n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, similarity_data)
+        elif strategy == 'similarity_reverse': # 验证相似性排序的影响-逆序
+            n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, similarity_data, reverse_results=True)
         elif strategy == 'various': # 验证类别信息+多样性排序
             n_shot_support = retrieve_category_aware_demos(query, support_meta, n_shot, similarity_data, support_features, query_feature, balance_threshold)
         elif strategy == 'whole':  # 主实验
             n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity, support_features, query_feature, balance_threshold)
+        elif strategy == 'whole_reverse':  # 主实验-逆序
+            n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity, support_features, query_feature, balance_threshold, reverse_results=True)
         elif strategy == 'test_diverse': # 验证去掉类别信息后，多样性排序有效性
             n_shot_support = retrieve_diverse_demos(query, support_meta, n_shot, similarity_data, support_features, query_feature)
         elif strategy == 'test_same_similarity': # 与查询相同类别但按相似性排序
@@ -32,7 +36,7 @@ def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, si
 
     return n_shot_support
 
-def retrieve_similar_demos(query_item, support_meta, n_shot, similarity_data):
+def retrieve_similar_demos(query_item, support_meta, n_shot, similarity_data, reverse_results=False):
     """
     基于预计算相似度的Top-N检索
     
@@ -41,6 +45,7 @@ def retrieve_similar_demos(query_item, support_meta, n_shot, similarity_data):
         support_meta: 支持集元数据列表
         n_shot: 需要返回的示例数量
         similarity_data: 预加载的相似度字典
+        reverse_results: 是否逆序排列返回的示例
     
     返回：
         list: 排序后的支持集样本列表（按相似度降序）
@@ -67,7 +72,8 @@ def retrieve_similar_demos(query_item, support_meta, n_shot, similarity_data):
             if len(selected) >= n_shot:
                 break
     
-    return selected
+    # 根据reverse_results参数决定是否逆序返回
+    return selected[::-1] if reverse_results else selected
 
 def retrieve_category_aware_demos(
     query_item,
@@ -387,7 +393,7 @@ def retrieve_diverse_demos(
     
     return final_selected
 
-def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold, min_class_ratio=0.2):
+def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold, min_class_ratio=0.2, reverse_results=False):
     """
     三阶段检索策略：
     1. 第一阶段：使用视觉相似度选择5*n_shot个候选
@@ -404,6 +410,7 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         query_feature: 查询特征
         balance_threshold: 主类模式阈值
         min_class_ratio: 最小类别占比阈值(新增参数)
+        reverse_results: 是否逆序排列返回的示例
     """
     # 将support_meta转换为字典形式，以img_id为键
     support_dict = {item['img_id']: item for item in support_meta}
@@ -548,7 +555,8 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         strategy="mmr"
     )
     
-    return final_selected
+    # 根据reverse_results参数决定是否逆序返回
+    return final_selected[::-1] if reverse_results else final_selected
 
 def retrieve_text_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity):
     """

@@ -54,7 +54,20 @@ def coco_id_to_imgname(img_id, prefix='COCO_val2014_'):
 def load_data(args):
     dataDir = args.dataDir
     query_file = os.path.join(dataDir, args.dataset, 'query.json')
-    support_file = os.path.join(dataDir, args.dataset, 'support.json')
+    
+    # 为EmoSet数据集选择不同规模的支持集
+    if args.dataset == 'EmoSet' and hasattr(args, 'exp_scale'):
+        # 根据exp_scale参数选择对应的支持集文件
+        if args.exp_scale in [100, 1000, 10000]:
+            support_file = os.path.join(dataDir, args.dataset, f'support_{args.exp_scale}.json')
+            print(f"使用EmoSet数据集的规模为{args.exp_scale}的支持集: {support_file}")
+        else:
+            # 如果exp_scale不是预设值，使用默认支持集
+            support_file = os.path.join(dataDir, args.dataset, 'support.json')
+            print(f"警告: exp_scale值 {args.exp_scale} 无效，使用默认支持集: {support_file}")
+    else:
+        # 对于其他数据集，使用默认的support.json
+        support_file = os.path.join(dataDir, args.dataset, 'support.json')
 
     with open(query_file, 'r') as f:
         query_meta = json.load(f)

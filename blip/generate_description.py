@@ -1,4 +1,5 @@
 import os
+
 import json
 import torch
 from PIL import Image
@@ -25,7 +26,7 @@ def load_blip_model(device="cuda"):
 def get_dataset_paths(dataset_name):
     """根据数据集名称生成相关路径"""
     dataset_dir = os.path.join(BASE_IMG_DIR, dataset_name)
-    json_path = os.path.join(dataset_dir, "support.json")
+    json_path = os.path.join(dataset_dir, "support_10000.json")
     return BASE_IMG_DIR, json_path
 
 def generate_description(image_path, model, processor, dataset_type):
@@ -115,7 +116,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='为数据集生成图像描述')
     parser.add_argument('--datasets', nargs='+', 
-                      default=['Intentonomy', 'EmoSet', 'EmotionROI', 'ArtPhoto'],
+                      default=['EmoSet'],
                       choices=['Intentonomy', 'EmoSet', 'ArtPhoto', 'EmotionROI'],
                       help='要处理的数据集列表')
     args = parser.parse_args()
