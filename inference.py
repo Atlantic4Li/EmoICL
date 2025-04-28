@@ -1,6 +1,6 @@
 import os
 import pickle
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 
 import torch
 from tqdm import tqdm
@@ -28,15 +28,15 @@ def parse_args():
     parser.add_argument('--text_image_sim', default='clip_text_image_similarity.pkl', type=str, help='the similarity of image-text')
     parser.add_argument("--engine", "-e", choices=["openflamingo", "otter-llama", "qwen-vl", 'internlm-x2', 
                                                    'idefics-9b-instruct', 
-                                                   'llava-onevision-7b','llava-onevision-0.5b','llava16-7b','llava16-13b'], default=['llava16-13b'], nargs="+")
-    parser.add_argument('--strategy', default=['whole'], type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
-    parser.add_argument('--n_shot', default=[1,2,4,8], nargs="+", help='Number of support images.')
+                                                   'llava-onevision-7b','llava-onevision-0.5b','llava16-7b','llava16-13b'], default=['idefics-9b-instruct'], nargs="+")
+    parser.add_argument('--strategy', default=['whole'], nargs='+', type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
+    parser.add_argument('--n_shot', default=[1,2,4,8], nargs='+', type=int, help='Number of support images.')
 
     parser.add_argument('--max-new-tokens', default=32, type=int, help='Max new tokens for generation.')
     parser.add_argument('--task_description', default='concise', type=str, choices=['nothing', 'concise', 'detailed'], help='Detailed level of task description.')
     parser.add_argument('--ft', default=False, type=bool, help='Whether to use fine-tuning.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
-    parser.add_argument('--balance_threshold', default=0.5, type=int, help='Random seed.')
+    parser.add_argument('--balance_threshold', default=0.5, type=float, help='Random seed.')
     parser.add_argument('--exp_scale', default=10000, type=int, help='emoset support scale')
     return parser.parse_args()
 
@@ -86,7 +86,6 @@ def eval_questions(args, query_meta, support_meta, model, tokenizer, processor, 
 
 if __name__ == "__main__":
     args = parse_args()
-
     query_meta, support_meta = utils.load_data(args)
     
     for engine in args.engine:
@@ -100,11 +99,11 @@ if __name__ == "__main__":
             for shot in args.n_shot:
                 results_dict = eval_questions(args, query_meta, support_meta, model, tokenizer, processor, engine, strategy, int(shot))
                 os.makedirs(f"{args.resultDir}/{args.dataset}_{strategy}", exist_ok=True)
-                if args.ft:
-                    with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-ft2-balance{args.balance_threshold}.json", "w") as f:
-                        json.dump(results_dict, f, indent=4)
-                elif not args.ft:
+                if args.strategy == 'whole':
                     with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-7_3-balance{args.balance_threshold}.json", "w") as f:
+                        json.dump(results_dict, f, indent=4)
+                else:
+                    with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-balance{args.balance_threshold}.json", "w") as f:
                         json.dump(results_dict, f, indent=4)
 
             del model, tokenizer, processor

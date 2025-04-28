@@ -109,7 +109,7 @@ def retrieve_category_aware_demos(
     # ------ 第一阶段：全局相似性筛选 ------
     # 获取查询与所有支持样本的相似度
     query_id = query_item["img_id"]
-    all_similarities = similarity_data.get(query_id, {})
+    all_similarities = {k: v for k, v in similarity_data.get(query_id, {}).items() if k in support_dict}
     
     # 按相似度排序并取Top-K（如5*n_shot）
     sorted_sims = sorted(
@@ -173,7 +173,9 @@ def handle_single_shot(
     """单样本场景优化逻辑"""
     # 获取相似度排序
     query_id = query_item["img_id"]
-    all_similarities = similarity_data.get(query_id, {})
+    support_dict = {item["img_id"]: item for item in support_meta}
+    # all_similarities = similarity_data.get(query_id, {})
+    all_similarities = {k: v for k, v in similarity_data.get(query_id, {}).items() if k in support_dict}
     sorted_sims = sorted(all_similarities.items(), key=lambda x: x[1], reverse=True)
     
     # 预筛选 Top-K 样本
@@ -185,7 +187,6 @@ def handle_single_shot(
         return []
     
     # 构建类别分布
-    support_dict = {item["img_id"]: item for item in support_meta}
     category_counter = defaultdict(int)
     for s_id in pre_filtered_ids:
         if s_id in support_dict:
