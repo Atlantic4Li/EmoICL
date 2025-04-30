@@ -29,15 +29,15 @@ def parse_args():
     parser.add_argument("--engine", "-e", choices=["openflamingo", "otter-llama", "llava16-7b", "qwen-vl", "qwen-vl-chat", 'internlm-x2', 
                                                    'emu2-chat', 'idefics-9b-instruct', 'idefics-80b-instruct', 'gpt4v', 'llava-onevision-7b',
                                                    'llava-onevision-0.5b'],
-                        default=['llava-onevision-7b'], nargs="+")
-    parser.add_argument('--strategy', default=['random', 'similarity'], type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','whole','test_diverse'], help='Example selection strategy.')
-    parser.add_argument('--n_shot', default=[8], nargs="+", help='Number of support images.')
+                        default=['llava-onevision-7b',"qwen-vl"], nargs="+")
+    parser.add_argument('--strategy', default=['various'], type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','whole','test_diverse'], help='Example selection strategy.')
+    parser.add_argument('--n_shot', default=[1,2,4,8], nargs="+", help='Number of support images.')
 
     parser.add_argument('--max-new-tokens', default=256, type=int, help='Max new tokens for generation.')
     parser.add_argument('--task_description', default='concise', type=str, choices=['nothing', 'concise', 'detailed'], help='Detailed level of task description.')
     parser.add_argument('--ft', default=False, type=bool, help='Whether to use fine-tuning.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
-    parser.add_argument('--balance_threshold', default=0.5, type=int, help='Random seed.')
+    parser.add_argument('--balance_threshold', default=0.7, type=int, help='Random seed.')
     return parser.parse_args()
 
 

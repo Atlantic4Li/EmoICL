@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--engine", "-e", choices=["openflamingo", "otter-llama", "qwen-vl", 'internlm-x2', 
                                                    'idefics-9b-instruct', 
                                                    'llava-onevision-7b','llava-onevision-0.5b','llava16-7b','llava16-13b'], default=['idefics-9b-instruct'], nargs="+")
-    parser.add_argument('--strategy', default=['whole'], nargs='+', type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
+    parser.add_argument('--strategy', default=['random'], nargs='+', type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
     parser.add_argument('--n_shot', default=[1,2,4,8], nargs='+', type=int, help='Number of support images.')
 
     parser.add_argument('--max-new-tokens', default=32, type=int, help='Max new tokens for generation.')
@@ -99,12 +99,9 @@ if __name__ == "__main__":
             for shot in args.n_shot:
                 results_dict = eval_questions(args, query_meta, support_meta, model, tokenizer, processor, engine, strategy, int(shot))
                 os.makedirs(f"{args.resultDir}/{args.dataset}_{strategy}", exist_ok=True)
-                if args.strategy == 'whole':
-                    with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-7_3-balance{args.balance_threshold}.json", "w") as f:
-                        json.dump(results_dict, f, indent=4)
-                else:
-                    with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-balance{args.balance_threshold}.json", "w") as f:
-                        json.dump(results_dict, f, indent=4)
+                
+                with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-balance{args.balance_threshold}-seed{args.seed}.json", "w") as f:
+                    json.dump(results_dict, f, indent=4)
 
             del model, tokenizer, processor
             torch.cuda.empty_cache()
