@@ -259,8 +259,8 @@
 #     else:
 #         print(f"文件不存在：{file_path}")
 
-import csv
-import json
+# import csv
+# import json
 
 # "Being physically or personally attractive", "Competing to outperform others", "Communicating with others", "Expressing creativity and uniqueness",
 #     "Living a curious, adventurous, and exciting life", "Having a easy life", "Enjoying life", "Appreciating architecture", "Appreciating artistic expression", 
@@ -270,60 +270,84 @@ import json
 #     "Achieving occupational success and job satisfaction", "Teaching others", "Keeping things orderly", "Engaging in personally fulfilling work"
 
 # 需要您提供实际的category映射关系
-category_map = {
-    0: "Being physically or personally attractive",
-    1: "Competing to outperform others",
-    2: "Communicating with others",
-    3: "Expressing creativity and uniqueness",
-    4: "Living a curious, adventurous, and exciting life",
-    5: "Having a easy life",
-    6: "Enjoying life",
-    7: "Appreciating architecture",
-    8: "Appreciating artistic expression",
-    9: "Appreciating cultural heritage",
-    10: "Being a good parent with emotional closeness to children",
-    11: "Experiencing happiness",
-    12: "Working diligently",
-    13: "Maintaining balance and harmony",
-    14: "Keeping healthy",
-    15: "Being in love",
-    16: "Having affection for animals",
-    17: "Inspiring others",
-    18: "Effectively managing tasks and making plans",
-    19: "Appreciating natural beauty",
-    20: "Having a passion for something",
-    21: "Being playful",
-    22: "Sharing feelings",
-    23: "Maintaining social life and friendships",
-    24: "Achieving occupational success and job satisfaction",
-    25: "Teaching others",
-    26: "Keeping things orderly",
-    27: "Engaging in personally fulfilling work"
-}
+# category_map = {
+#     0: "Being physically or personally attractive",
+#     1: "Competing to outperform others",
+#     2: "Communicating with others",
+#     3: "Expressing creativity and uniqueness",
+#     4: "Living a curious, adventurous, and exciting life",
+#     5: "Having a easy life",
+#     6: "Enjoying life",
+#     7: "Appreciating architecture",
+#     8: "Appreciating artistic expression",
+#     9: "Appreciating cultural heritage",
+#     10: "Being a good parent with emotional closeness to children",
+#     11: "Experiencing happiness",
+#     12: "Working diligently",
+#     13: "Maintaining balance and harmony",
+#     14: "Keeping healthy",
+#     15: "Being in love",
+#     16: "Having affection for animals",
+#     17: "Inspiring others",
+#     18: "Effectively managing tasks and making plans",
+#     19: "Appreciating natural beauty",
+#     20: "Having a passion for something",
+#     21: "Being playful",
+#     22: "Sharing feelings",
+#     23: "Maintaining social life and friendships",
+#     24: "Achieving occupational success and job satisfaction",
+#     25: "Teaching others",
+#     26: "Keeping things orderly",
+#     27: "Engaging in personally fulfilling work"
+# }
 
-def csv_to_json(csv_path, json_path):
-    result = []
+# def csv_to_json(csv_path, json_path):
+#     result = []
     
-    with open(csv_path, 'r') as csv_file:
-        csv_reader = csv.DictReader(csv_file)
+#     with open(csv_path, 'r') as csv_file:
+#         csv_reader = csv.DictReader(csv_file)
         
-        for row in csv_reader:
-            image_id = row['image_id']
-            category = int(row['category'])
+#         for row in csv_reader:
+#             image_id = row['image_id']
+#             category = int(row['category'])
             
-            # 构建JSON条目
-            entry = {
-                "id": f"Intentonomy_images_{image_id}",
-                "image": [f"Intentonomy/images/{image_id}.jpg"],
-                "question": "What is the intention of this image?",
-                "answer": "The intention of this image is " + category_map.get(category, "unknown_intention"),
-                "img_id": image_id,
-                "category": category
-            }
-            result.append(entry)
+#             # 构建JSON条目
+#             entry = {
+#                 "id": f"Intentonomy_images_{image_id}",
+#                 "image": [f"Intentonomy/images/{image_id}.jpg"],
+#                 "question": "What is the intention of this image?",
+#                 "answer": "The intention of this image is " + category_map.get(category, "unknown_intention"),
+#                 "img_id": image_id,
+#                 "category": category
+#             }
+#             result.append(entry)
     
-    with open(json_path, 'w') as json_file:
-        json.dump(result, json_file, indent=2)
+#     with open(json_path, 'w') as json_file:
+#         json.dump(result, json_file, indent=2)
 
-# 使用示例
-csv_to_json('/data0/lxy_data/Intentonomy/query.csv', '/data0/lxy_data/Intentonomy/query_1.json')
+# # 使用示例
+# csv_to_json('/data0/lxy_data/Intentonomy/query.csv', '/data0/lxy_data/Intentonomy/query_1.json')
+
+# ====== 查看pkl文件内容工具 ======
+import pickle
+
+def view_pkl(path, max_items=5):
+    with open(path, 'rb') as f:
+        data = pickle.load(f)
+    print(f"Loaded: {type(data)}")
+    if isinstance(data, dict):
+        print(f"dict keys (show {max_items}):", list(data.keys())[:max_items])
+        for k in list(data.keys())[:max_items]:
+            print(f"  {k}: {type(data[k])}, sample: {str(data[k])[:200]}")
+    elif isinstance(data, list):
+        print(f"list length: {len(data)}")
+        for i, v in enumerate(data[:max_items]):
+            print(f"  [{i}]: {type(v)}, sample: {str(v)[:200]}")
+    else:
+        print("data sample:", str(data)[:500])
+
+# 用法示例：
+data1 = view_pkl('/data1/yq_log/IntenICL/DataSet/EmoSet/similarity/clip_text_image_similarity.pkl')
+data2 = view_pkl('/data1/yq_log/IntenICL/DataSet/EmoSet/similarity/image_image_similarity.pkl')
+data3 = view_pkl('/data1/yq_log/IntenICL/DataSet/EmoSet/similarity/text_text_similarity.pkl')
+data4 = 1

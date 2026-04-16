@@ -22,12 +22,18 @@
 datasets=('EmoSet')
 
 for dataset in "${datasets[@]}"; do
-    echo "运行配置: dataset=$dataset, strategy=similarity, n_shot=[1,2,4,8], exp_scale 100"
-    python inference.py --dataset "$dataset" --strategy similarity --n_shot 1 2 4 8 --exp_scale 100
+    # similarity_reverse策略，n_shot为[1,2,4,8]，balance_threshold为0.5
+    echo "运行配置: dataset=$dataset, strategy=random, n_shot=[0,1,2,4,8], seed=1"
+    python inference.py --dataset "$dataset" --strategy random --n_shot 0 1 2 4 8 --seed 1 --exp_scale 10000
+    
+    # whole_reverse策略，n_shot为[1,2,4,8]，balance_threshold为0.5
+    echo "运行配置: dataset=$dataset, strategy=random, n_shot=[0,1,2,4,8], seed=2"
+    python inference.py --dataset "$dataset" --strategy random --n_shot 0 1 2 4 8 --seed 2 --exp_scale 10000
 
-    echo "运行配置: dataset=$dataset, strategy=similarity, n_shot=[1,2,4,8], exp_scale 1000"
-    python inference.py --dataset "$dataset" --strategy similarity --n_shot 1 2 4 8 --exp_scale 1000
+    echo "运行配置: dataset=$dataset, strategy=random, n_shot=[0,1,2,4,8], seed=3"
+    python inference.py --dataset "$dataset" --strategy random --n_shot 0 1 2 4 8 --seed 3 --exp_scale 10000
 
-    echo "运行配置: dataset=$dataset, strategy=similarity, n_shot=[1,2,4,8], exp_scale 10000"
-    python inference.py --dataset "$dataset" --strategy similarity --n_shot 1 2 4 8 --exp_scale 10000
+    echo "运行配置: dataset=$dataset, strategy=random, n_shot=[0,1,2,4,8], seed=4"
+    python inference.py --dataset "$dataset" --strategy random --n_shot 0 1 2 4 8 --seed 4 --exp_scale 10000
+
 done

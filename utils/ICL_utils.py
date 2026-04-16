@@ -5,31 +5,68 @@ from collections import defaultdict
 from scipy.spatial.distance import cdist
 import math
 import torch
+import pickle
+import os
+import torch.nn.functional as F
 from transformers import CLIPProcessor, CLIPModel
 
 
-def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, similarity_data=None, support_features=None, query_feature=None, balance_threshold=0.7, cross_modal_similarity=None):
-    if dataset in ['Intentonomy','EmotionROI','ArtPhoto','EmoSet','StanfordCars','StanfordDogs','CUB_200_2011','OxfordFlowers17','Oxford-IIIT_Pet']:   
+def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, args=None, query_features=None, **kwargs):
+    # 加载数据文件（新版参数）
+    data_path = args.dataDir
+    # 图像特征
+    with open(f'{data_path}/{dataset}/query/{args.query_image_features}', 'rb') as f:
+        query_image_features = pickle.load(f)
+    with open(f'{data_path}/{dataset}/support/{args.support_image_features}', 'rb') as f:
+        support_image_features = pickle.load(f)
+    # 文本特征
+    with open(f'{data_path}/{dataset}/query/{args.query_text_features}', 'rb') as f:
+        query_text_features = pickle.load(f)
+    with open(f'{data_path}/{dataset}/support/{args.support_text_features}', 'rb') as f:
+        support_text_features = pickle.load(f)
+    # 相似度
+    with open(f'{data_path}/{dataset}/similarity/{args.text_text_similarity}', 'rb') as f:
+        text_text_similarity = pickle.load(f)
+    with open(f'{data_path}/{dataset}/similarity/{args.clip_text_image_similarity}', 'rb') as f:
+        clip_text_image_similarity = pickle.load(f)
+    with open(f'{data_path}/{dataset}/similarity/{args.image_image_similarity}', 'rb') as f:
+        image_image_similarity = pickle.load(f)
+
+    # 默认用图像特征
+    if query_features is None:
+        query_features = query_image_features
+    # 获取当前查询的图像特征
+    if query and query['img_id'] in query_features:
+        query_feature = query_features[query['img_id']].numpy()
+    else:
+        query_feature = None
+
+    balance_threshold = args.balance_threshold
+    control_score_weight = args.score_weight
+    control_lambda_param = args.alpha_weight
+    
+    if dataset in ['Intentonomy','EmotionROI','ArtPhoto','EmoSet','StanfordCars','StanfordDogs','CUB_200_2011','OxfordFlowers17','Oxford-IIIT_Pet']:
         if strategy == 'random':    # 随机选择
             n_shot_support_raw = random.sample(support_meta, n_shot)
             n_shot_support = copy.deepcopy(n_shot_support_raw)
         elif strategy == 'similarity': # 验证相似性排序的影响
-            n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, similarity_data)
+            n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, image_image_similarity)
         elif strategy == 'similarity_reverse': # 验证相似性排序的影响-逆序
-            n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, similarity_data, reverse_results=True)
+            n_shot_support = retrieve_similar_demos(query, support_meta, n_shot, image_image_similarity, reverse_results=True)
         elif strategy == 'various': # 验证类别信息+多样性排序
-            n_shot_support = retrieve_category_aware_demos(query, support_meta, n_shot, similarity_data, support_features, query_feature, balance_threshold)
+            n_shot_support = retrieve_category_aware_demos(query, support_meta, n_shot, image_image_similarity, support_image_features, query_feature, balance_threshold)
         elif strategy == 'whole':  # 主实验
-            n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity, support_features, query_feature, balance_threshold)
+            n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, image_image_similarity, clip_text_image_similarity, support_image_features, query_feature, balance_threshold, score_weight=control_score_weight, lambda_param=control_lambda_param)
         elif strategy == 'whole_reverse':  # 主实验-逆序
-            n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity, support_features, query_feature, balance_threshold, reverse_results=True)
+            n_shot_support = retrieve_hybrid_demos(query, support_meta, n_shot, image_image_similarity, clip_text_image_similarity, support_image_features, query_feature, balance_threshold, reverse_results=True, score_weight=control_score_weight, lambda_param=control_lambda_param)
         elif strategy == 'test_diverse': # 验证去掉类别信息后，多样性排序有效性
-            n_shot_support = retrieve_diverse_demos(query, support_meta, n_shot, similarity_data, support_features, query_feature)
+            n_shot_support = retrieve_diverse_demos(query, support_meta, n_shot, image_image_similarity, support_image_features, query_feature)
         elif strategy == 'test_same_similarity': # 与查询相同类别但按相似性排序
-            n_shot_support = retrieve_same_class_demos(query, support_meta, n_shot, similarity_data)
+            n_shot_support = retrieve_same_class_demos(query, support_meta, n_shot, image_image_similarity)
         elif strategy == 'test_same_random': # 与查询相同类别但随机排序
             n_shot_support = retrieve_random_demos(support_meta, n_shot, query)
         elif strategy == 'test_text_similarity': # 使用文本相似度，验证重排有效性
+<<<<<<< HEAD
             n_shot_support = retrieve_text_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity)
         elif strategy == 'MMICES': # 先视觉过滤筛选出前200个，然后基于文本相似度筛选出前N个
             n_shot_support = retrieve_mmices_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity)
@@ -41,6 +78,37 @@ def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, si
         elif strategy == 'MSIER': # 多模态场景意图增强检索策略（暂未实现）
             # TODO: 实现MSIER策略
             n_shot_support = random.sample(support_meta, min(n_shot, len(support_meta)))
+=======
+            n_shot_support = retrieve_text_demos(query, support_meta, n_shot, text_text_similarity, clip_text_image_similarity)
+        elif strategy == 'qtmt':
+            n_shot_support = retrieve_qtmt_demos(query, support_meta, n_shot, text_text_similarity)
+        elif strategy == 'mmices':
+            n_shot_support = retrieve_mmices_demos(query, support_meta, n_shot, image_image_similarity, text_text_similarity)
+        elif strategy == 'muier':
+            n_shot_support = retrieve_muier_demos(query, support_meta, n_shot,
+                                                  query_image_features, support_image_features,
+                                                  query_text_features, support_text_features)
+        elif strategy == 'cdsp':  # CDSP: 每个类别选最相似样本，按相似度排序取前n_shot
+            n_shot_support = retrieve_cdsp_demos(query, support_meta, n_shot, image_image_similarity)
+        elif strategy == 'circles':  # CIRCLES: correlational + causal retrieval
+            from .circles_utils import retrieve_circles_demos
+            n_shot_support = retrieve_circles_demos(
+                query=query,
+                support_meta=support_meta,
+                n_shot=n_shot,
+                similarity_data=image_image_similarity,
+                support_features=support_image_features,
+                model=kwargs.get("model"),
+                tokenizer=kwargs.get("tokenizer"),
+                processor=kwargs.get("processor"),
+                engine=kwargs.get("engine"),
+                data_path=kwargs.get("data_path"),
+                clip_model_name=kwargs.get("clip_model_name", "openai/clip-vit-base-patch32"),
+                num_attributes=kwargs.get("num_attributes", 1),
+                attribute_k=kwargs.get("attribute_k", n_shot),
+                attributes=kwargs.get("attributes"),
+            )
+>>>>>>> bc7a5d0 (baselines)
     # else:
     #     n_shot_support = random.sample(support_meta, n_shot)
 
@@ -279,6 +347,54 @@ def allocate_quota(category_counts, total, n_shot):
     return {k: v for k, v in base_alloc.items() if v > 0}
 
 
+def retrieve_cdsp_demos(query_item, support_meta, n_shot, similarity_data):
+    """
+    CDSP (Category-Diversified Similarity Prioritization) 策略：
+    每个类别中选择与query最相似的一个样本作为该类别代表，
+    然后按相似度对所有类别代表排序，选取前n_shot个。
+
+    参数：
+        query_item: 查询样本的元数据字典（需包含img_id）
+        support_meta: 支持集元数据列表
+        n_shot: 需要返回的示例数量
+        similarity_data: 预加载的相似度字典
+
+    返回：
+        list: 按相似度降序排列的n_shot个样本（每个来自不同类别）
+    """
+    support_dict = {item["img_id"]: item for item in support_meta}
+    query_id = query_item["img_id"]
+
+    if query_id not in similarity_data:
+        raise KeyError(f"Query ID {query_id} 不存在于相似度数据中")
+
+    similarities = similarity_data[query_id]
+
+    # 按类别分组
+    category_map = defaultdict(list)
+    for item in support_meta:
+        s_id = item["img_id"]
+        if s_id in similarities:
+            category_map[item["category"]].append((s_id, similarities[s_id]))
+
+    # 每个类别选出与query最相似的一个样本
+    category_representatives = []
+    for category, samples in category_map.items():
+        best_id, best_sim = max(samples, key=lambda x: x[1])
+        category_representatives.append((best_id, best_sim))
+
+    # 按相似度降序排列所有类别代表
+    category_representatives.sort(key=lambda x: x[1], reverse=True)
+
+    # 选取前n_shot个
+    selected = []
+    for s_id, _ in category_representatives[:n_shot]:
+        if s_id in support_dict:
+            selected.append(support_dict[s_id])
+
+    return selected
+
+
 def retrieve_same_class_demos(query_item, support_meta, n_shot, similarity_data):
     """
     选择与查询图像相同类别的示例
@@ -404,7 +520,7 @@ def retrieve_diverse_demos(
     
     return final_selected
 
-def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold, min_class_ratio=0.2, reverse_results=False):
+def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity, support_features, query_feature, balance_threshold, min_class_ratio=0.2, reverse_results=False, score_weight=0.7, lambda_param=0.6):
     """
     三阶段检索策略：
     1. 第一阶段：使用视觉相似度选择5*n_shot个候选
@@ -445,7 +561,7 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         for cand_id, visual_score in pre_filtered.items():
             if cand_id in cross_modal_similarity[query_id]:
                 cross_score = cross_modal_similarity[query_id][cand_id]
-                combined_score = 0.7 * visual_score + 0.3 * cross_score
+                combined_score = score_weight * visual_score + (1 - score_weight) * cross_score
                 candidate_scores[cand_id] = combined_score
         
         # 按类别统计
@@ -511,7 +627,7 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         if cand_id in cross_sims:
             visual_score = first_stage_candidates[cand_id]
             cross_score = cross_sims[cand_id]
-            combined_score = 0.7 * visual_score + 0.3 * cross_score
+            combined_score = score_weight * visual_score + (1 - score_weight) * cross_score
             candidate_scores[cand_id] = combined_score
     
     category_groups = defaultdict(list)
@@ -563,7 +679,8 @@ def retrieve_hybrid_demos(query, support_meta, n_shot, visual_similarity, cross_
         features=feature_lookup,
         query_feature=query_feature,
         n_shot=n_shot,
-        strategy="mmr"
+        strategy="mmr",
+        lambda_param=lambda_param
     )
     
     # 根据reverse_results参数决定是否逆序返回
@@ -622,148 +739,110 @@ def retrieve_text_demos(query, support_meta, n_shot, visual_similarity, cross_mo
     return selected_samples
 
 
-def retrieve_qtmt_demos(query, support_meta, n_shot, cross_modal_similarity):
+def retrieve_qtmt_demos(query_item, support_meta, n_shot, text_similarity_data, reverse_results=False):
     """
-    QTMT (Query Text Matching Text) 策略：仅使用文本相似度选择样本
-    
-    参数：
-        query: 查询样本信息
-        support_meta: 支持集元数据
-        n_shot: 需要检索的样本数量
-        cross_modal_similarity: 语义相似度矩阵
-    
-    返回：
-        list: 基于文本相似度选择的样本列表
+    QTMT策略：仅基于文本-文本相似度进行Top-N检索
     """
     support_dict = {item["img_id"]: item for item in support_meta}
-    query_id = query["img_id"]
-    
-    # 检查是否存在文本相似度数据
-    if cross_modal_similarity is None or query_id not in cross_modal_similarity:
-        # 如果没有文本相似度数据，退化为随机选择
-        return random.sample(support_meta, min(n_shot, len(support_meta)))
-    
-    # 获取文本相似度数据
-    text_sims = cross_modal_similarity[query_id]
-    
-    # 筛选出在支持集中的样本的文本相似度
-    valid_text_sims = {}
-    for s_id, sim_score in text_sims.items():
-        if s_id in support_dict:
-            valid_text_sims[s_id] = sim_score
-    
-    # 如果没有有效的文本相似度，退化为随机选择
-    if not valid_text_sims:
-        return random.sample(support_meta, min(n_shot, len(support_meta)))
-    
-    # 按文本相似度排序
-    sorted_by_text = sorted(valid_text_sims.items(), key=lambda x: x[1], reverse=True)
-    
-    # 选择前n_shot个
-    selected_ids = [s_id for s_id, _ in sorted_by_text[:n_shot]]
-    
-    # 构建结果列表
-    selected_samples = []
-    for s_id in selected_ids:
-        if s_id in support_dict:
-            selected_samples.append(support_dict[s_id])
-            if len(selected_samples) >= n_shot:
-                break
-    
-    # 如果最终结果不足n_shot个，从支持集中随机补充
-    if len(selected_samples) < n_shot:
-        remaining = n_shot - len(selected_samples)
-        selected_ids_set = set(s["img_id"] for s in selected_samples if "img_id" in s)
-        remaining_samples = [s for s in support_meta if s["img_id"] not in selected_ids_set]
-        
-        if remaining_samples:
-            random_samples = random.sample(remaining_samples, min(remaining, len(remaining_samples)))
-            selected_samples.extend(random_samples)
-    
-    return selected_samples
+    query_id = query_item["img_id"]
 
+    if query_id not in text_similarity_data:
+        raise KeyError(f"Query ID {query_id} 不存在于文本相似度数据中")
 
-def retrieve_mmices_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity):
+    similarities = text_similarity_data[query_id]
+    # 筛选出在支持集中的样本
+    valid_similarities = {k: v for k, v in similarities.items() if k in support_dict}
+
+    sorted_ids = sorted(valid_similarities.keys(),
+                       key=lambda x: valid_similarities[x],
+                       reverse=not reverse_results)
+
+    selected = [support_dict[s_id] for s_id in sorted_ids[:n_shot]]
+    return selected
+
+def retrieve_mmices_demos(query_item, support_meta, n_shot, image_similarity_data, text_similarity_data, reverse_results=False):
     """
-    MMICES策略：先视觉过滤筛选出前200个，然后基于文本相似度筛选出前N个
-    
-    参数：
-        query: 查询样本信息
-        support_meta: 支持集元数据
-        n_shot: 需要检索的样本数量
-        visual_similarity: 视觉相似度矩阵
-        cross_modal_similarity: 语义相似度矩阵
-    
-    返回：
-        list: 基于视觉-文本两阶段筛选的样本列表
+    MMICES策略：先视觉过滤，后文本相似度排序
     """
     support_dict = {item["img_id"]: item for item in support_meta}
-    query_id = query["img_id"]
-    
-    # 阶段1: 视觉相似度筛选前200个样本
-    visual_sims = visual_similarity.get(query_id, {})
-    if not visual_sims:
-        # 防御性编程：如果没有视觉相似度数据，则退化为随机选择
-        return random.sample(support_meta, min(n_shot, len(support_meta)))
-    
-    visual_candidates = sorted(
-        visual_sims.items(),
-        key=lambda x: x[1],
-        reverse=True
-    )
-    
-    # 限制为前200个，如果没有那么多则取所有可用样本
-    top_visual_count = min(200, len(visual_candidates))
-    visual_filtered_ids = [s_id for s_id, _ in visual_candidates[:top_visual_count] if s_id in support_dict]
-    
-    # 防御性检查：如果视觉筛选结果为空，则退化为随机选择
-    if not visual_filtered_ids:
-        return random.sample(support_meta, min(n_shot, len(support_meta)))
-    
-    # 阶段2: 文本相似度重排序
-    if cross_modal_similarity is not None and query_id in cross_modal_similarity:
-        cross_sims = cross_modal_similarity[query_id]
-        
-        # 获取文本相似度分数，只考虑视觉筛选后的样本
-        text_scores = {}
-        for s_id in visual_filtered_ids:
-            if s_id in cross_sims:
-                text_scores[s_id] = cross_sims[s_id]
-        
-        # 如果没有有效的文本相似度，退化为直接使用视觉筛选结果
-        if not text_scores:
-            selected_ids = visual_filtered_ids[:n_shot]
-        else:
-            # 按文本相似度排序并取前n_shot个
-            sorted_by_text = sorted(text_scores.items(), key=lambda x: x[1], reverse=True)
-            selected_ids = [s_id for s_id, _ in sorted_by_text[:n_shot]]
-    else:
-        # 如果没有文本相似度数据，则直接从视觉筛选结果中选择前n_shot个
-        selected_ids = visual_filtered_ids[:n_shot]
-    
-    # 根据选择的ID构建结果列表
-    selected_samples = []
-    for s_id in selected_ids:
-        if s_id in support_dict:
-            selected_samples.append(support_dict[s_id])
-            if len(selected_samples) >= n_shot:
-                break
-    
-    # 如果最终结果不足n_shot个，从支持集中随机补充
-    if len(selected_samples) < n_shot:
-        remaining = n_shot - len(selected_samples)
-        selected_ids_set = set(s_id for s in selected_samples if "img_id" in s for s_id in [s["img_id"]])
-        remaining_samples = [s for s in support_meta if s["img_id"] not in selected_ids_set]
-        
-        if remaining_samples:
-            random_samples = random.sample(remaining_samples, min(remaining, len(remaining_samples)))
-            selected_samples.extend(random_samples)
-    
-    return selected_samples
+    query_id = query_item["img_id"]
 
+    # 阶段一：视觉相似度筛选前200个
+    if query_id not in image_similarity_data:
+        raise KeyError(f"Query ID {query_id} 不存在于图像相似度数据中")
+    
+    image_similarities = image_similarity_data[query_id]
+    valid_image_sims = {k: v for k, v in image_similarities.items() if k in support_dict}
+    
+    sorted_by_image_sim = sorted(valid_image_sims.keys(),
+                                 key=lambda x: valid_image_sims[x],
+                                 reverse=True)
+    
+    candidates_200 = sorted_by_image_sim[:200]
+
+    # 阶段二：在候选集中按文本相似度排序
+    if query_id not in text_similarity_data:
+        raise KeyError(f"Query ID {query_id} 不存在于文本相似度数据中")
+
+    text_similarities = text_similarity_data[query_id]
+    
+    # 从文本相似度中筛选出第一阶段的候选
+    candidate_text_sims = {cand_id: text_similarities.get(cand_id, 0) for cand_id in candidates_200}
+
+    sorted_by_text_sim = sorted(candidate_text_sims.keys(),
+                                key=lambda x: candidate_text_sims[x],
+                                reverse=not reverse_results)
+
+    selected_ids = sorted_by_text_sim[:n_shot]
+    selected = [support_dict[s_id] for s_id in selected_ids]
+    return selected
+
+def retrieve_muier_demos(query_item, support_meta, n_shot, 
+                         query_image_features, support_image_features,
+                         query_text_features, support_text_features,
+                         reverse_results=False):
+    """
+    MUIER策略：融合图像和文本特征后计算相似度
+    """
+    support_dict = {item["img_id"]: item for item in support_meta}
+    query_id = query_item["img_id"]
+
+    # 融合查询特征
+    query_img_feat = query_image_features.get(query_id)
+    query_txt_feat = query_text_features.get(query_id)
+    
+    if query_img_feat is None or query_txt_feat is None:
+        raise ValueError(f"查询样本 {query_id} 缺少图像或文本特征")
+    
+    query_combined_feat = (query_img_feat + query_txt_feat) / 2.0
+    query_combined_feat = F.normalize(query_combined_feat, p=2, dim=-1)
+
+    # 融合并计算与所有支持样本的相似度
+    similarities = {}
+    for s_item in support_meta:
+        s_id = s_item["img_id"]
+        s_img_feat = support_image_features.get(s_id)
+        s_txt_feat = support_text_features.get(s_id)
+
+        if s_img_feat is not None and s_txt_feat is not None:
+            s_combined_feat = (s_img_feat + s_txt_feat) / 2.0
+            s_combined_feat = F.normalize(s_combined_feat, p=2, dim=-1)
+            
+            # 计算相似度
+            sim = (query_combined_feat.float() @ s_combined_feat.float().T).item()
+            similarities[s_id] = sim
+
+    # 排序并选择
+    sorted_ids = sorted(similarities.keys(),
+                       key=lambda x: similarities[x],
+                       reverse=not reverse_results)
+    
+    selected_ids = sorted_ids[:n_shot]
+    selected = [support_dict[s_id] for s_id in selected_ids]
+    return selected
 
 def select_with_diversity(candidate_ids, support_dict, features, 
-                        query_feature, n_shot, strategy):
+                        query_feature, n_shot, strategy, lambda_param=0.6):
     """查询感知的多样性选择"""
     valid_features = []
     valid_ids = []
@@ -782,7 +861,7 @@ def select_with_diversity(candidate_ids, support_dict, features,
     if strategy == "fps":
         indices = farthest_point_sampling(feature_matrix, query_feature, n_shot)
     elif strategy == "mmr":
-        indices = mmr_selection(feature_matrix, query_feature, n_shot)
+        indices = mmr_selection(feature_matrix, query_feature, n_shot, lambda_param=lambda_param)
     elif strategy == "kmedoids":
         indices = kmedoids_selection(feature_matrix, n_shot)
     else:
