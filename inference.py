@@ -1,6 +1,6 @@
 import os
 import pickle
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import torch
 from tqdm import tqdm
@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--text_image_sim', default='clip_text_image_similarity.pkl', type=str, help='the similarity of image-text')
     parser.add_argument("--engine", "-e", choices=["openflamingo", "otter-llama", "qwen-vl", 'internlm-x2', 
                                                    'idefics-9b-instruct', 
-                                                   'llava-onevision-7b','llava-onevision-0.5b','llava16-7b','llava16-13b'], default=['idefics-9b-instruct'], nargs="+")
+                                                   'llava-onevision-7b','llava-onevision-0.5b','llava16-7b','llava16-13b'], default=['qwen-vl'], nargs="+")
     parser.add_argument('--strategy', default=['random'], nargs='+', type=str, choices=['random', 'similarity', 'various','test_same_similarity','test_same_random','test_text_similarity','test_diverse','whole'], help='Example selection strategy.')
     parser.add_argument('--n_shot', default=[1,2,4,8], nargs='+', type=int, help='Number of support images.')
 
@@ -99,8 +99,8 @@ if __name__ == "__main__":
             for shot in args.n_shot:
                 results_dict = eval_questions(args, query_meta, support_meta, model, tokenizer, processor, engine, strategy, int(shot))
                 os.makedirs(f"{args.resultDir}/{args.dataset}_{strategy}", exist_ok=True)
-                
-                with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-balance{args.balance_threshold}-seed{args.seed}.json", "w") as f:
+
+                with open(f"{args.resultDir}/{args.dataset}_{strategy}/{engine}_{shot}-shot-balance{args.balance_threshold}-seed{args.seed}-scale{args.exp_scale}.json", "w") as f:
                     json.dump(results_dict, f, indent=4)
 
             del model, tokenizer, processor

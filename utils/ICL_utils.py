@@ -31,6 +31,16 @@ def select_demonstration(support_meta, n_shot, dataset, strategy, query=None, si
             n_shot_support = retrieve_random_demos(support_meta, n_shot, query)
         elif strategy == 'test_text_similarity': # 使用文本相似度，验证重排有效性
             n_shot_support = retrieve_text_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity)
+        elif strategy == 'MMICES': # 先视觉过滤筛选出前200个，然后基于文本相似度筛选出前N个
+            n_shot_support = retrieve_mmices_demos(query, support_meta, n_shot, similarity_data, cross_modal_similarity)
+        elif strategy == 'QTMT': # 只使用文本相似度进行样本选择
+            n_shot_support = retrieve_qtmt_demos(query, support_meta, n_shot, cross_modal_similarity)
+        elif strategy == 'MUIER': # 多模态用户意图增强检索策略（暂未实现）
+            # TODO: 实现MUIER策略
+            n_shot_support = random.sample(support_meta, min(n_shot, len(support_meta)))
+        elif strategy == 'MSIER': # 多模态场景意图增强检索策略（暂未实现）
+            # TODO: 实现MSIER策略
+            n_shot_support = random.sample(support_meta, min(n_shot, len(support_meta)))
     # else:
     #     n_shot_support = random.sample(support_meta, n_shot)
 
@@ -608,6 +618,146 @@ def retrieve_text_demos(query, support_meta, n_shot, visual_similarity, cross_mo
             selected_samples.append(support_dict[s_id])
             if len(selected_samples) >= n_shot:
                 break
+    
+    return selected_samples
+
+
+def retrieve_qtmt_demos(query, support_meta, n_shot, cross_modal_similarity):
+    """
+    QTMT (Query Text Matching Text) 策略：仅使用文本相似度选择样本
+    
+    参数：
+        query: 查询样本信息
+        support_meta: 支持集元数据
+        n_shot: 需要检索的样本数量
+        cross_modal_similarity: 语义相似度矩阵
+    
+    返回：
+        list: 基于文本相似度选择的样本列表
+    """
+    support_dict = {item["img_id"]: item for item in support_meta}
+    query_id = query["img_id"]
+    
+    # 检查是否存在文本相似度数据
+    if cross_modal_similarity is None or query_id not in cross_modal_similarity:
+        # 如果没有文本相似度数据，退化为随机选择
+        return random.sample(support_meta, min(n_shot, len(support_meta)))
+    
+    # 获取文本相似度数据
+    text_sims = cross_modal_similarity[query_id]
+    
+    # 筛选出在支持集中的样本的文本相似度
+    valid_text_sims = {}
+    for s_id, sim_score in text_sims.items():
+        if s_id in support_dict:
+            valid_text_sims[s_id] = sim_score
+    
+    # 如果没有有效的文本相似度，退化为随机选择
+    if not valid_text_sims:
+        return random.sample(support_meta, min(n_shot, len(support_meta)))
+    
+    # 按文本相似度排序
+    sorted_by_text = sorted(valid_text_sims.items(), key=lambda x: x[1], reverse=True)
+    
+    # 选择前n_shot个
+    selected_ids = [s_id for s_id, _ in sorted_by_text[:n_shot]]
+    
+    # 构建结果列表
+    selected_samples = []
+    for s_id in selected_ids:
+        if s_id in support_dict:
+            selected_samples.append(support_dict[s_id])
+            if len(selected_samples) >= n_shot:
+                break
+    
+    # 如果最终结果不足n_shot个，从支持集中随机补充
+    if len(selected_samples) < n_shot:
+        remaining = n_shot - len(selected_samples)
+        selected_ids_set = set(s["img_id"] for s in selected_samples if "img_id" in s)
+        remaining_samples = [s for s in support_meta if s["img_id"] not in selected_ids_set]
+        
+        if remaining_samples:
+            random_samples = random.sample(remaining_samples, min(remaining, len(remaining_samples)))
+            selected_samples.extend(random_samples)
+    
+    return selected_samples
+
+
+def retrieve_mmices_demos(query, support_meta, n_shot, visual_similarity, cross_modal_similarity):
+    """
+    MMICES策略：先视觉过滤筛选出前200个，然后基于文本相似度筛选出前N个
+    
+    参数：
+        query: 查询样本信息
+        support_meta: 支持集元数据
+        n_shot: 需要检索的样本数量
+        visual_similarity: 视觉相似度矩阵
+        cross_modal_similarity: 语义相似度矩阵
+    
+    返回：
+        list: 基于视觉-文本两阶段筛选的样本列表
+    """
+    support_dict = {item["img_id"]: item for item in support_meta}
+    query_id = query["img_id"]
+    
+    # 阶段1: 视觉相似度筛选前200个样本
+    visual_sims = visual_similarity.get(query_id, {})
+    if not visual_sims:
+        # 防御性编程：如果没有视觉相似度数据，则退化为随机选择
+        return random.sample(support_meta, min(n_shot, len(support_meta)))
+    
+    visual_candidates = sorted(
+        visual_sims.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+    
+    # 限制为前200个，如果没有那么多则取所有可用样本
+    top_visual_count = min(200, len(visual_candidates))
+    visual_filtered_ids = [s_id for s_id, _ in visual_candidates[:top_visual_count] if s_id in support_dict]
+    
+    # 防御性检查：如果视觉筛选结果为空，则退化为随机选择
+    if not visual_filtered_ids:
+        return random.sample(support_meta, min(n_shot, len(support_meta)))
+    
+    # 阶段2: 文本相似度重排序
+    if cross_modal_similarity is not None and query_id in cross_modal_similarity:
+        cross_sims = cross_modal_similarity[query_id]
+        
+        # 获取文本相似度分数，只考虑视觉筛选后的样本
+        text_scores = {}
+        for s_id in visual_filtered_ids:
+            if s_id in cross_sims:
+                text_scores[s_id] = cross_sims[s_id]
+        
+        # 如果没有有效的文本相似度，退化为直接使用视觉筛选结果
+        if not text_scores:
+            selected_ids = visual_filtered_ids[:n_shot]
+        else:
+            # 按文本相似度排序并取前n_shot个
+            sorted_by_text = sorted(text_scores.items(), key=lambda x: x[1], reverse=True)
+            selected_ids = [s_id for s_id, _ in sorted_by_text[:n_shot]]
+    else:
+        # 如果没有文本相似度数据，则直接从视觉筛选结果中选择前n_shot个
+        selected_ids = visual_filtered_ids[:n_shot]
+    
+    # 根据选择的ID构建结果列表
+    selected_samples = []
+    for s_id in selected_ids:
+        if s_id in support_dict:
+            selected_samples.append(support_dict[s_id])
+            if len(selected_samples) >= n_shot:
+                break
+    
+    # 如果最终结果不足n_shot个，从支持集中随机补充
+    if len(selected_samples) < n_shot:
+        remaining = n_shot - len(selected_samples)
+        selected_ids_set = set(s_id for s in selected_samples if "img_id" in s for s_id in [s["img_id"]])
+        remaining_samples = [s for s in support_meta if s["img_id"] not in selected_ids_set]
+        
+        if remaining_samples:
+            random_samples = random.sample(remaining_samples, min(remaining, len(remaining_samples)))
+            selected_samples.extend(random_samples)
     
     return selected_samples
 
