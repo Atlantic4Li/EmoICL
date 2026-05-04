@@ -1,6 +1,6 @@
 # EmoICL
 
-**EmoICL: Enhancing Visual Emotion Recognition with Emotion-Aware In-Context Learning** — 官方实现（this repository）。
+**EmoICL: Enhancing Visual Emotion Recognition with Emotion-Aware In-Context Learning**
 
 ## Framework
 
