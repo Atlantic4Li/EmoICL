@@ -8,7 +8,7 @@
   <img src="img/main_icl.png" alt="EmoICL: emotion-aware in-context learning framework" width="95%" />
 </p>
 
-## Overview
+<!-- ## Overview
 
 EmoICL performs **image-to-text in-context learning (ICL)** for visual emotion recognition: an **emotion-aware** pipeline retrieves support examples (fixed **whole** strategy: visual similarity, cross-modal reranking, MMR diversity), then prompts **vision–language models** with those in-context pairs to predict emotion categories.
 
@@ -86,4 +86,4 @@ Update the BibTeX entry with the official metadata from the camera-ready version
 
 ## License
 
-Add a `LICENSE` file if you distribute this repository publicly.
+Add a `LICENSE` file if you distribute this repository publicly. -->
