@@ -4,13 +4,9 @@
 
 ## Framework
 
-<div align="center">
-
-[**main_icl.pdf**（框架图，矢量）](img/main_icl.pdf)
-
-</div>
-
-> 说明：GitHub 等网页 README 通常无法直接内嵌显示 PDF。请下载或本地打开 [`img/main_icl.pdf`](img/main_icl.pdf) 查看；若需网页内嵌图，可自行导出 `main_icl.png` 并改为引用 PNG。
+<p align="center">
+  <img src="img/main_icl.png" alt="EmoICL: emotion-aware in-context learning framework" width="95%" />
+</p>
 
 ## Overview
 
@@ -31,7 +27,7 @@ EmoICL performs **image-to-text in-context learning (ICL)** for visual emotion r
 | `clip/` | Optional: CLIP-style image features / similarities (`create_sim.py`; edit paths inside script). |
 | `getExample.py` | Debug: copy retrieved support images for selected query IDs. |
 | `run_*.sh` | Batch examples per model family. |
-| `img/` | Figures (e.g. framework PDF). |
+| `img/` | Figures (`main_icl.png` framework overview). |
 
 ## Data preparation
 
